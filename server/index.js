@@ -29,11 +29,13 @@ await db.execute(`
   )
 `);
 
-io.on("connection", (socket) => {
+io.on("connection", async (socket) => {
   console.log("a user connected");
+
   socket.on("disconnect", () => {
     console.log("user disconnected");
   });
+
   socket.on("chat message", async (msg) => {
     let result;
     try {
@@ -47,6 +49,24 @@ io.on("connection", (socket) => {
     }
     io.emit("chat message", msg, result.lastInsertRowid.toString());
   });
+
+  //Ver socket desde el Front
+  // console.log(socket.handshake.auth)
+
+  if (!socket.recovered) {
+    try {
+      const results = await db.execute({
+        sql: "SELECT id,content FROM messages WHERE id>?",
+        args: [socket.handshake.auth.serverOffset ?? 0],
+      });
+      results.rows.forEach((row) => {
+        io.emit("chat message", row.content, row.id.toString());
+      });
+    } catch (error) {
+      console.error(error);
+      return;
+    }
+  }
 });
 
 app.use(logger("dev"));
